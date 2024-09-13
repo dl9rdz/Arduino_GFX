@@ -3,29 +3,30 @@
  * Require ESP8266/ESP32 board support.
  */
 
-//POWER SAVING SETTING
+// POWER SAVING SETTING
 #define SCAN_INTERVAL 3000
 // #define SCAN_COUNT_SLEEP 3
 // #define LCD_PWR_PIN 14
 
 /*******************************************************************************
  * Start of Arduino_GFX setting
- * 
+ *
  * Arduino_GFX try to find the settings depends on selected board in Arduino IDE
  * Or you can define the display dev kit not in the board list
  * Defalult pin list for non display dev kit:
- * Arduino Nano, Micro and more: CS:  9, DC:  8, RST:  7, BL:  6
- * ESP32 various dev board     : CS:  5, DC: 27, RST: 33, BL: 22
- * ESP32-C3 various dev board  : CS:  7, DC:  2, RST:  1, BL:  3
- * ESP32-S2 various dev board  : CS: 34, DC: 26, RST: 33, BL: 21
- * ESP8266 various dev board   : CS: 15, DC:  4, RST:  2, BL:  5
- * Raspberry Pi Pico dev board : CS: 17, DC: 27, RST: 26, BL: 28
- * RTL8720 BW16 old patch core : CS: 18, DC: 17, RST:  2, BL: 23
- * RTL8720_BW16 Official core  : CS:  9, DC:  8, RST:  6, BL:  3
- * RTL8722 dev board           : CS: 18, DC: 17, RST: 22, BL: 23
- * RTL8722_mini dev board      : CS: 12, DC: 14, RST: 15, BL: 13
- * Seeeduino XIAO dev board    : CS:  3, DC:  2, RST:  1, BL:  0
- * Teensy 4.1 dev board        : CS: 39, DC: 41, RST: 40, BL: 22
+ * Arduino Nano, Micro and more: CS:  9, DC:  8, RST:  7, BL:  6, SCK: 13, MOSI: 11, MISO: 12
+ * ESP32 various dev board     : CS:  5, DC: 27, RST: 33, BL: 22, SCK: 18, MOSI: 23, MISO: nil
+ * ESP32-C3 various dev board  : CS:  7, DC:  2, RST:  1, BL:  3, SCK:  4, MOSI:  6, MISO: nil
+ * ESP32-S2 various dev board  : CS: 34, DC: 38, RST: 33, BL: 21, SCK: 36, MOSI: 35, MISO: nil
+ * ESP32-S3 various dev board  : CS: 40, DC: 41, RST: 42, BL: 48, SCK: 36, MOSI: 35, MISO: nil
+ * ESP8266 various dev board   : CS: 15, DC:  4, RST:  2, BL:  5, SCK: 14, MOSI: 13, MISO: 12
+ * Raspberry Pi Pico dev board : CS: 17, DC: 27, RST: 26, BL: 28, SCK: 18, MOSI: 19, MISO: 16
+ * RTL8720 BW16 old patch core : CS: 18, DC: 17, RST:  2, BL: 23, SCK: 19, MOSI: 21, MISO: 20
+ * RTL8720_BW16 Official core  : CS:  9, DC:  8, RST:  6, BL:  3, SCK: 10, MOSI: 12, MISO: 11
+ * RTL8722 dev board           : CS: 18, DC: 17, RST: 22, BL: 23, SCK: 13, MOSI: 11, MISO: 12
+ * RTL8722_mini dev board      : CS: 12, DC: 14, RST: 15, BL: 13, SCK: 11, MOSI:  9, MISO: 10
+ * Seeeduino XIAO dev board    : CS:  3, DC:  2, RST:  1, BL:  0, SCK:  8, MOSI: 10, MISO:  9
+ * Teensy 4.1 dev board        : CS: 39, DC: 41, RST: 40, BL: 22, SCK: 13, MOSI: 11, MISO: 12
  ******************************************************************************/
 #include <Arduino_GFX_Library.h>
 
@@ -40,7 +41,7 @@ Arduino_GFX *gfx = create_default_Arduino_GFX();
 Arduino_DataBus *bus = create_default_Arduino_DataBus();
 
 /* More display class: https://github.com/moononournation/Arduino_GFX/wiki/Display-Class */
-Arduino_GFX *gfx = new Arduino_ILI9341(bus, DF_GFX_RST, 0 /* rotation */, false /* IPS */);
+Arduino_GFX *gfx = new Arduino_ILI9341(bus, DF_GFX_RST, 3 /* rotation */, false /* IPS */);
 
 #endif /* !defined(DISPLAY_DEV_KIT) */
 /*******************************************************************************
@@ -69,10 +70,19 @@ uint8_t scan_count = 0;
 
 void setup()
 {
+  Serial.begin(115200);
+  // Serial.setDebugOutput(true);
+  // while(!Serial);
+  Serial.println("Arduino_GFX ESP WiFi Analyzer example");
+
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(100);
+
+#ifdef GFX_EXTRA_PRE_INIT
+  GFX_EXTRA_PRE_INIT();
+#endif
 
 #if defined(LCD_PWR_PIN)
   pinMode(LCD_PWR_PIN, OUTPUT);    // sets the pin as output
@@ -80,12 +90,15 @@ void setup()
 #endif
 
 #ifdef GFX_BL
-    pinMode(GFX_BL, OUTPUT);
-    digitalWrite(GFX_BL, HIGH);
+  pinMode(GFX_BL, OUTPUT);
+  digitalWrite(GFX_BL, HIGH);
 #endif
 
-  // init LCD
-  gfx->begin();
+  // Init Display
+  if (!gfx->begin())
+  {
+    Serial.println("gfx->begin() failed!");
+  }
   w = gfx->width();
   h = gfx->height();
   text_size = (h < 200) ? 1 : 2;
@@ -168,8 +181,7 @@ void loop()
       bool duplicate_SSID = false;
       for (int j = 0; j < i; j++)
       {
-        if (
-            (WiFi.channel(j) == channel) && matchBssidPrefix(WiFi.BSSID(j), bssid))
+        if ((WiFi.channel(j) == channel) && matchBssidPrefix(WiFi.BSSID(j), bssid))
         {
           duplicate_SSID = true;
           break;
@@ -239,7 +251,7 @@ void loop()
       // gfx->drawLine(offset, graph_baseline - height, offset - signal_width, graph_baseline + 1, color);
       // gfx->drawLine(offset, graph_baseline - height, offset + signal_width, graph_baseline + 1, color);
       gfx->startWrite();
-      gfx->drawEllipseHelper(offset, graph_baseline + 1, signal_width, height, 0b0011, color);
+      gfx->writeEllipseHelper(offset, graph_baseline + 1, signal_width, height, 0b0011, color);
       gfx->endWrite();
 
       if (i == peak_id_list[idx])
@@ -257,7 +269,7 @@ void loop()
         }
         else
         {
-          offset = (channel - 1) * channel_width;
+          offset -= signal_width;
           if ((offset + text_width) > w)
           {
             offset = w - text_width;
@@ -317,7 +329,7 @@ void loop()
   }
 
   // draw graph base axle
-  gfx->drawFastHLine(0, graph_baseline, 320, WHITE);
+  gfx->drawFastHLine(0, graph_baseline, gfx->width(), WHITE);
   for (channel = 1; channel <= 14; channel++)
   {
     idx = channel - 1;
@@ -338,7 +350,7 @@ void loop()
   delay(SCAN_INTERVAL);
 
 #if defined(SCAN_COUNT_SLEEP)
-  //POWER SAVING
+  // POWER SAVING
   if (++scan_count >= SCAN_COUNT_SLEEP)
   {
 #if defined(LCD_PWR_PIN)

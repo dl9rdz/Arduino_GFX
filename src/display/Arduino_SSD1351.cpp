@@ -13,22 +13,23 @@ Arduino_SSD1351::Arduino_SSD1351(
 {
 }
 
-void Arduino_SSD1351::begin(int32_t speed)
+bool Arduino_SSD1351::begin(int32_t speed)
 {
 #if defined(ESP8266) || defined(ESP32)
-  if (speed == 0)
+  if (speed == GFX_NOT_DEFINED)
   {
-    speed = 16000000;
+    speed = 16000000UL;
   }
 // Teensy 4.x
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)
-  if (speed == 0)
+  if (speed == GFX_NOT_DEFINED)
   {
-    speed = 16000000;
+    speed = 16000000UL;
   }
 #endif
   _override_datamode = SPI_MODE0; // always SPI_MODE0
-  Arduino_TFT::begin(speed);
+
+  return Arduino_TFT::begin(speed);
 }
 
 // Companion code to the above tables.  Reads and issues
@@ -118,10 +119,8 @@ void Arduino_SSD1351::setRotation(uint8_t r)
     break;
   }
   _bus->beginWrite();
-  _bus->writeCommand(SSD1351_SETREMAP);
-  _bus->write(r);
-  _bus->writeCommand(SSD1351_STARTLINE);
-  _bus->write(startline);
+  _bus->writeC8D8(SSD1351_SETREMAP, r);
+  _bus->writeC8D8(SSD1351_STARTLINE, startline);
   _bus->endWrite();
 }
 

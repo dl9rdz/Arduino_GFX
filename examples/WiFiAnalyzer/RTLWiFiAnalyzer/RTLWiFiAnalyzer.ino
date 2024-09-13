@@ -144,8 +144,17 @@ static int8_t scanNetworks()
 
 void setup()
 {
+  Serial.begin(115200);
+  // Serial.setDebugOutput(true);
+  // while(!Serial);
+  Serial.println("Arduino_GFX RTL WiFi Analyzer example");
+
   LwIP_Init();
   wifi_on(RTW_MODE_STA);
+
+#ifdef GFX_EXTRA_PRE_INIT
+  GFX_EXTRA_PRE_INIT();
+#endif
 
 #if defined(LCD_PWR_PIN)
   pinMode(LCD_PWR_PIN, OUTPUT);    // sets the pin as output
@@ -157,8 +166,11 @@ void setup()
     digitalWrite(GFX_BL, HIGH);
 #endif
 
-  // init LCD
-  gfx->begin();
+  // Init Display
+  if (!gfx->begin())
+  {
+    Serial.println("gfx->begin() failed!");
+  }
   w = gfx->width();
   h = gfx->height();
   text_size = (h < 200) ? 1 : 2;
@@ -252,7 +264,7 @@ void loop()
 
       // plot chart
       gfx->startWrite();
-      gfx->drawEllipseHelper(offset, graph_baseline + 1, signal_width, height, 0b0011, color);
+      gfx->writeEllipseHelper(offset, graph_baseline + 1, signal_width, height, 0b0011, color);
       gfx->endWrite();
 
       if (i == peak_id_list[idx])
@@ -270,6 +282,7 @@ void loop()
         }
         else
         {
+          offset -= signal_width;
           if ((offset + text_width) > w)
           {
             offset = w - text_width;
@@ -296,7 +309,7 @@ void loop()
   gfx->print(" networks");
 
   // draw 2.4 GHz graph base axle
-  gfx->drawFastHLine(0, graph24_baseline, 320, WHITE);
+  gfx->drawFastHLine(0, graph24_baseline, gfx->width(), WHITE);
   for (idx = 0; idx < 14; idx++)
   {
     channel = channel_legend[idx];

@@ -1,4 +1,4 @@
-#ifdef ARDUINO_RASPBERRY_PI_PICO
+#if defined(TARGET_RP2040)
 
 #include "Arduino_RPiPicoPAR16.h"
 
@@ -7,7 +7,7 @@ Arduino_RPiPicoPAR16::Arduino_RPiPicoPAR16(int8_t dc, int8_t cs, int8_t wr, int8
 {
 }
 
-void Arduino_RPiPicoPAR16::begin(int32_t speed, int8_t dataMode)
+bool Arduino_RPiPicoPAR16::begin(int32_t speed, int8_t dataMode)
 {
   pinMode(_dc, OUTPUT);
   digitalWrite(_dc, HIGH); // Data mode
@@ -19,10 +19,6 @@ void Arduino_RPiPicoPAR16::begin(int32_t speed, int8_t dataMode)
     digitalWrite(_cs, HIGH); // disable chip select
     _csPinMask = digitalPinToBitMask(_cs);
   }
-  else
-  {
-    _csPinMask = 0;
-  }
 
   pinMode(_wr, OUTPUT);
   digitalWrite(_wr, HIGH); // Set write strobe high (inactive)
@@ -33,11 +29,6 @@ void Arduino_RPiPicoPAR16::begin(int32_t speed, int8_t dataMode)
   {
     pinMode(_rd, OUTPUT);
     digitalWrite(_rd, HIGH);
-    _rdPinMask = digitalPinToBitMask(_rd);
-  }
-  else
-  {
-    _rdPinMask = 0;
   }
 
   pinMode(0, OUTPUT);
@@ -57,6 +48,8 @@ void Arduino_RPiPicoPAR16::begin(int32_t speed, int8_t dataMode)
   pinMode(14, OUTPUT);
   pinMode(15, OUTPUT);
   sio_hw->gpio_clr = 0xFFFF;
+
+  return true;
 }
 
 void Arduino_RPiPicoPAR16::beginWrite()
@@ -84,6 +77,18 @@ void Arduino_RPiPicoPAR16::writeCommand16(uint16_t c)
   DC_LOW();
 
   WRITE16(c);
+
+  DC_HIGH();
+}
+
+void Arduino_RPiPicoPAR16::writeCommandBytes(uint8_t *data, uint32_t len)
+{
+  DC_LOW();
+
+  while (len--)
+  {
+    WRITE(*data++);
+  }
 
   DC_HIGH();
 }
@@ -137,12 +142,22 @@ void Arduino_RPiPicoPAR16::writeC8D16(uint8_t c, uint16_t d)
 
   DC_HIGH();
 
-  _data16.value = d;
-  WRITE(_data16.msb);
-  WRITE(_data16.lsb);
+  WRITE16(d);
 }
 
 void Arduino_RPiPicoPAR16::writeC8D16D16(uint8_t c, uint16_t d1, uint16_t d2)
+{
+  DC_LOW();
+
+  WRITE(c);
+
+  DC_HIGH();
+
+  WRITE16(d1);
+  WRITE16(d2);
+}
+
+void Arduino_RPiPicoPAR16::writeC8D16D16Split(uint8_t c, uint16_t d1, uint16_t d2)
 {
   DC_LOW();
 
@@ -174,14 +189,6 @@ void Arduino_RPiPicoPAR16::writeBytes(uint8_t *data, uint32_t len)
   }
 }
 
-void Arduino_RPiPicoPAR16::writePattern(uint8_t *data, uint8_t len, uint32_t repeat)
-{
-  while (repeat--)
-  {
-    writeBytes(data, len);
-  }
-}
-
 void Arduino_RPiPicoPAR16::writeIndexedPixels(uint8_t *data, uint16_t *idx, uint32_t len)
 {
   while (len--)
@@ -204,14 +211,14 @@ void Arduino_RPiPicoPAR16::writeIndexedPixelsDouble(uint8_t *data, uint16_t *idx
   }
 }
 
-INLINE void Arduino_RPiPicoPAR16::WRITE(uint8_t d)
+GFX_INLINE void Arduino_RPiPicoPAR16::WRITE(uint8_t d)
 {
   sio_hw->gpio_clr = _dataClrMask;
   sio_hw->gpio_set = d;
   sio_hw->gpio_set = _wrPinMask;
 }
 
-INLINE void Arduino_RPiPicoPAR16::WRITE16(uint16_t d)
+GFX_INLINE void Arduino_RPiPicoPAR16::WRITE16(uint16_t d)
 {
   sio_hw->gpio_clr = _dataClrMask;
   sio_hw->gpio_set = d;
@@ -220,24 +227,30 @@ INLINE void Arduino_RPiPicoPAR16::WRITE16(uint16_t d)
 
 /******** low level bit twiddling **********/
 
-INLINE void Arduino_RPiPicoPAR16::DC_HIGH(void)
+GFX_INLINE void Arduino_RPiPicoPAR16::DC_HIGH(void)
 {
   sio_hw->gpio_set = _dcPinMask;
 }
 
-INLINE void Arduino_RPiPicoPAR16::DC_LOW(void)
+GFX_INLINE void Arduino_RPiPicoPAR16::DC_LOW(void)
 {
   sio_hw->gpio_clr = _dcPinMask;
 }
 
-INLINE void Arduino_RPiPicoPAR16::CS_HIGH(void)
+GFX_INLINE void Arduino_RPiPicoPAR16::CS_HIGH(void)
 {
-  sio_hw->gpio_set = _csPinMask;
+  if (_cs != GFX_NOT_DEFINED)
+  {
+    sio_hw->gpio_set = _csPinMask;
+  }
 }
 
-INLINE void Arduino_RPiPicoPAR16::CS_LOW(void)
+GFX_INLINE void Arduino_RPiPicoPAR16::CS_LOW(void)
 {
-  sio_hw->gpio_clr = _csPinMask;
+  if (_cs != GFX_NOT_DEFINED)
+  {
+    sio_hw->gpio_clr = _csPinMask;
+  }
 }
 
-#endif // #ifdef ARDUINO_RASPBERRY_PI_PICO
+#endif // #if defined(TARGET_RP2040)

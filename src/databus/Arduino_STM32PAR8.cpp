@@ -7,10 +7,8 @@ Arduino_STM32PAR8::Arduino_STM32PAR8(int8_t dc, int8_t cs, int8_t wr, int8_t rd,
 {
 }
 
-void Arduino_STM32PAR8::begin(int32_t speed, int8_t dataMode)
+bool Arduino_STM32PAR8::begin(int32_t, int8_t)
 {
-  UNUSED(speed);
-  UNUSED(dataMode);
   set_GPIO_Port_Clock(STM_PORT(_port)); // Enable data port
   pinMode(_dc, OUTPUT);
   digitalWrite(_dc, HIGH); // Data mode
@@ -24,11 +22,7 @@ void Arduino_STM32PAR8::begin(int32_t speed, int8_t dataMode)
     _csPinMaskSet = digitalPinToBitMask(_cs);
     _csPORT = digitalPinToPort(_cs);
   }
-  else
-  {
-    _csPinMaskSet = 0;
-  }
-  
+
   pinMode(_wr, OUTPUT);
   digitalWrite(_wr, HIGH); // Set write strobe high (inactive)
   _wrPort = (PORTreg_t)portOutputRegister(digitalPinToPort(_wr));
@@ -47,8 +41,10 @@ void Arduino_STM32PAR8::begin(int32_t speed, int8_t dataMode)
     _rdPinMaskSet = 0;
   }
 
-  *(portModeRegister(_port)) = 0x33333333;  // Set data port to output at max speed
-  _port->BSRR = 0xFF << 16; //Clear data port
+  *(portModeRegister(_port)) = 0x33333333; // Set data port to output at max speed
+  _port->BSRR = 0xFF << 16;                // Clear data port
+
+  return true;
 }
 
 void Arduino_STM32PAR8::beginWrite()
@@ -78,6 +74,18 @@ void Arduino_STM32PAR8::writeCommand16(uint16_t c)
   _data16.value = c;
   WRITE(_data16.msb);
   WRITE(_data16.lsb);
+
+  DC_HIGH();
+}
+
+void Arduino_STM32PAR8::writeCommandBytes(uint8_t *data, uint32_t len)
+{
+  DC_LOW();
+
+  while (len--)
+  {
+    WRITE(*data++);
+  }
 
   DC_HIGH();
 }
@@ -188,14 +196,6 @@ void Arduino_STM32PAR8::writeBytes(uint8_t *data, uint32_t len)
   }
 }
 
-void Arduino_STM32PAR8::writePattern(uint8_t *data, uint8_t len, uint32_t repeat)
-{
-  while (repeat--)
-  {
-    writeBytes(data, len);
-  }
-}
-
 void Arduino_STM32PAR8::writeIndexedPixels(uint8_t *data, uint16_t *idx, uint32_t len)
 {
   while (len--)
@@ -218,34 +218,40 @@ void Arduino_STM32PAR8::writeIndexedPixelsDouble(uint8_t *data, uint16_t *idx, u
   }
 }
 
-INLINE void Arduino_STM32PAR8::WRITE(uint8_t d)
+GFX_INLINE void Arduino_STM32PAR8::WRITE(uint8_t d)
 {
   _port->BSRR = 0xFF << 16;
   _port->BSRR = (d)&0xFF;
-  _wrPORT->BSRR = _wrPinMaskSet << 16;  //Set WR LOW
-  _wrPORT->BSRR = _wrPinMaskSet;  //Set WR HIGH
+  _wrPORT->BSRR = _wrPinMaskSet << 16; // Set WR LOW
+  _wrPORT->BSRR = _wrPinMaskSet;       // Set WR HIGH
 }
 
 /******** low level bit twiddling **********/
 
-INLINE void Arduino_STM32PAR8::DC_HIGH(void)
+GFX_INLINE void Arduino_STM32PAR8::DC_HIGH(void)
 {
   _dcPORT->BSRR = _dcPinMaskSet;
 }
 
-INLINE void Arduino_STM32PAR8::DC_LOW(void)
+GFX_INLINE void Arduino_STM32PAR8::DC_LOW(void)
 {
   _dcPORT->BSRR = _dcPinMaskSet << 16;
 }
 
-INLINE void Arduino_STM32PAR8::CS_HIGH(void)
+GFX_INLINE void Arduino_STM32PAR8::CS_HIGH(void)
 {
-  _csPORT->BSRR = _csPinMaskSet;
+  if (_cs != GFX_NOT_DEFINED)
+  {
+    _csPORT->BSRR = _csPinMaskSet;
+  }
 }
 
-INLINE void Arduino_STM32PAR8::CS_LOW(void)
+GFX_INLINE void Arduino_STM32PAR8::CS_LOW(void)
 {
-  _csPORT->BSRR = _csPinMaskSet << 16;
+  if (_cs != GFX_NOT_DEFINED)
+  {
+    _csPORT->BSRR = _csPinMaskSet << 16;
+  }
 }
 
 #endif // #ifdef ARDUINO_ARCH_STM32

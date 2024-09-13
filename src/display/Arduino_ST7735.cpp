@@ -3,32 +3,34 @@
  * https://github.com/adafruit/Adafruit-GFX-Library.git
  */
 #include "Arduino_ST7735.h"
+#include "SPI.h"
 
 Arduino_ST7735::Arduino_ST7735(
     Arduino_DataBus *bus, int8_t rst, uint8_t r,
     bool ips, int16_t w, int16_t h,
     uint8_t col_offset1, uint8_t row_offset1, uint8_t col_offset2, uint8_t row_offset2,
     bool bgr)
-    : Arduino_TFT(bus, rst, r, ips, w, h, col_offset1, row_offset1, col_offset2, row_offset2)
+    : Arduino_TFT(bus, rst, r, ips, w, h, col_offset1, row_offset1, col_offset2, row_offset2), _bgr(bgr)
 {
-  _bgr = bgr;
 }
 
-void Arduino_ST7735::begin(int32_t speed)
+bool Arduino_ST7735::begin(int32_t speed)
 {
 #if defined(ESP8266) || defined(ESP32)
-  if (speed == 0)
+  if (speed == GFX_NOT_DEFINED)
   {
-    speed = 27000000; // ST7735 Maximum supported speed
+    speed = 27000000UL; // ST7735 Maximum supported speed
   }
 // Teensy 4.x
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)
-  if (speed == 0)
+  if (speed == GFX_NOT_DEFINED)
   {
-    speed = 27000000; // ST7735 Maximum supported speed
+    speed = 27000000UL; // ST7735 Maximum supported speed
   }
 #endif
-  Arduino_TFT::begin(speed);
+  _override_datamode = SPI_MODE0; // always use SPI_MODE0
+
+  return Arduino_TFT::begin(speed);
 }
 
 // Companion code to the above tables.  Reads and issues
@@ -45,24 +47,16 @@ void Arduino_ST7735::tftInit()
     digitalWrite(_rst, HIGH);
     delay(ST7735_RST_DELAY);
   }
-  // else
-  // {
-  // Software Rest
-  _bus->sendCommand(ST7735_SWRESET); // 1: Software reset
-  delay(ST7735_RST_DELAY);
-  // }
-
-  _bus->sendCommand(ST7735_SLPOUT); //  2: Out of sleep mode, no args, w/delay
-  delay(ST7735_SLPOUT_DELAY);
-  _bus->sendCommand(ST7735_COLMOD); // 3: Set color mode, 1 arg + delay:
-  _bus->sendData(0x05);             // 16-bit color
-  if (_ips)
+  else
   {
-    _bus->sendCommand(ST7735_INVON);
+    // Software Rest
+    _bus->sendCommand(ST7735_SWRESET); // 1: Software reset
+    delay(ST7735_RST_DELAY);
   }
-  _bus->sendCommand(ST7735_NORON); // 4: Normal display on, no args, w/delay
-  delay(10);
-  _bus->sendCommand(ST7735_DISPON); // 5: Main screen turn on, no args, w/delay
+
+  _bus->batchOperation(st7735_init_operations, sizeof(st7735_init_operations));
+
+  invertDisplay(false);
 }
 
 void Arduino_ST7735::writeAddrWindow(int16_t x, int16_t y, uint16_t w, uint16_t h)
@@ -122,14 +116,13 @@ void Arduino_ST7735::setRotation(uint8_t r)
     break;
   }
   _bus->beginWrite();
-  _bus->writeCommand(ST7735_MADCTL);
-  _bus->write(r);
+  _bus->writeC8D8(ST7735_MADCTL, r);
   _bus->endWrite();
 }
 
 void Arduino_ST7735::invertDisplay(bool i)
 {
-  _bus->sendCommand(_ips ? (i ? ST7735_INVOFF : ST7735_INVON) : (i ? ST7735_INVON : ST7735_INVOFF));
+  _bus->sendCommand((_ips ^ i) ? ST7735_INVON : ST7735_INVOFF);
 }
 
 void Arduino_ST7735::displayOn(void)

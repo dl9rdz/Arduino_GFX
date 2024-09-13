@@ -3,6 +3,8 @@
  * This is a simple BMP image viewer example
  * Image Source: https://github.blog/2014-11-24-from-sticker-to-sculpture-the-making-of-the-octocat-figurine/
  *
+ * BMP Class original source: https://github.com/Jaycar-Electronics/Arduino-Picture-Frame.git
+ *
  * Setup steps:
  * 1. Change your LCD parameters in Arduino_GFX setting
  * 2. Upload BMP file
@@ -29,22 +31,23 @@
 
 /*******************************************************************************
  * Start of Arduino_GFX setting
- * 
+ *
  * Arduino_GFX try to find the settings depends on selected board in Arduino IDE
  * Or you can define the display dev kit not in the board list
  * Defalult pin list for non display dev kit:
- * Arduino Nano, Micro and more: CS:  9, DC:  8, RST:  7, BL:  6
- * ESP32 various dev board     : CS:  5, DC: 27, RST: 33, BL: 22
- * ESP32-C3 various dev board  : CS:  7, DC:  2, RST:  1, BL:  3
- * ESP32-S2 various dev board  : CS: 34, DC: 26, RST: 33, BL: 21
- * ESP8266 various dev board   : CS: 15, DC:  4, RST:  2, BL:  5
- * Raspberry Pi Pico dev board : CS: 17, DC: 27, RST: 26, BL: 28
- * RTL8720 BW16 old patch core : CS: 18, DC: 17, RST:  2, BL: 23
- * RTL8720_BW16 Official core  : CS:  9, DC:  8, RST:  6, BL:  3
- * RTL8722 dev board           : CS: 18, DC: 17, RST: 22, BL: 23
- * RTL8722_mini dev board      : CS: 12, DC: 14, RST: 15, BL: 13
- * Seeeduino XIAO dev board    : CS:  3, DC:  2, RST:  1, BL:  0
- * Teensy 4.1 dev board        : CS: 39, DC: 41, RST: 40, BL: 22
+ * Arduino Nano, Micro and more: CS:  9, DC:  8, RST:  7, BL:  6, SCK: 13, MOSI: 11, MISO: 12
+ * ESP32 various dev board     : CS:  5, DC: 27, RST: 33, BL: 22, SCK: 18, MOSI: 23, MISO: nil
+ * ESP32-C3 various dev board  : CS:  7, DC:  2, RST:  1, BL:  3, SCK:  4, MOSI:  6, MISO: nil
+ * ESP32-S2 various dev board  : CS: 34, DC: 38, RST: 33, BL: 21, SCK: 36, MOSI: 35, MISO: nil
+ * ESP32-S3 various dev board  : CS: 40, DC: 41, RST: 42, BL: 48, SCK: 36, MOSI: 35, MISO: nil
+ * ESP8266 various dev board   : CS: 15, DC:  4, RST:  2, BL:  5, SCK: 14, MOSI: 13, MISO: 12
+ * Raspberry Pi Pico dev board : CS: 17, DC: 27, RST: 26, BL: 28, SCK: 18, MOSI: 19, MISO: 16
+ * RTL8720 BW16 old patch core : CS: 18, DC: 17, RST:  2, BL: 23, SCK: 19, MOSI: 21, MISO: 20
+ * RTL8720_BW16 Official core  : CS:  9, DC:  8, RST:  6, BL:  3, SCK: 10, MOSI: 12, MISO: 11
+ * RTL8722 dev board           : CS: 18, DC: 17, RST: 22, BL: 23, SCK: 13, MOSI: 11, MISO: 12
+ * RTL8722_mini dev board      : CS: 12, DC: 14, RST: 15, BL: 13, SCK: 11, MOSI:  9, MISO: 10
+ * Seeeduino XIAO dev board    : CS:  3, DC:  2, RST:  1, BL:  0, SCK:  8, MOSI: 10, MISO:  9
+ * Teensy 4.1 dev board        : CS: 39, DC: 41, RST: 40, BL: 22, SCK: 13, MOSI: 11, MISO: 12
  ******************************************************************************/
 #include <Arduino_GFX_Library.h>
 
@@ -70,7 +73,7 @@ Arduino_GFX *gfx = new Arduino_ILI9341(bus, DF_GFX_RST, 3 /* rotation */, false 
 #if defined(ARDUINO_ARCH_SAMD) && defined(SEEED_GROVE_UI_WIRELESS)
 #include <Seeed_FS.h>
 #include <SD/Seeed_SD.h>
-#elif defined(ARDUINO_RASPBERRY_PI_PICO)
+#elif defined(TARGET_RP2040)
 #include <LittleFS.h>
 #include <SD.h>
 #elif defined(ESP32)
@@ -78,6 +81,7 @@ Arduino_GFX *gfx = new Arduino_ILI9341(bus, DF_GFX_RST, 3 /* rotation */, false 
 #include <LittleFS.h>
 #include <SPIFFS.h>
 #include <SD.h>
+#include <SD_MMC.h>
 #elif defined(ESP8266)
 #include <LittleFS.h>
 #include <SD.h>
@@ -98,32 +102,47 @@ static void bmpDrawCallback(int16_t x, int16_t y, uint16_t *bitmap, int16_t w, i
 void setup()
 {
   Serial.begin(115200);
-  // while (!Serial);
-  Serial.println("BMP Image Viewer");
+  // Serial.setDebugOutput(true);
+  // while(!Serial);
+  Serial.println("Arduino_GFX BMP Image Viewer example");
+
+#ifdef GFX_EXTRA_PRE_INIT
+  GFX_EXTRA_PRE_INIT();
+#endif
 
   // Init Display
-  gfx->begin();
+  if (!gfx->begin())
+  {
+    Serial.println("gfx->begin() failed!");
+  }
   gfx->fillScreen(BLACK);
 
 #ifdef GFX_BL
-    pinMode(GFX_BL, OUTPUT);
-    digitalWrite(GFX_BL, HIGH);
+  pinMode(GFX_BL, OUTPUT);
+  digitalWrite(GFX_BL, HIGH);
 #endif
 
 /* Wio Terminal */
 #if defined(ARDUINO_ARCH_SAMD) && defined(SEEED_GROVE_UI_WIRELESS)
   if (!SD.begin(SDCARD_SS_PIN, SDCARD_SPI, 4000000UL))
-#elif defined(ARDUINO_RASPBERRY_PI_PICO)
+#elif defined(TARGET_RP2040)
   if (!LittleFS.begin())
   // if (!SD.begin(SS))
 #elif defined(ESP32)
   // if (!FFat.begin())
   if (!LittleFS.begin())
   // if (!SPIFFS.begin())
-  // if (!SD.begin(SS))
+  // SPI.begin(12 /* CLK */, 13 /* D0/MISO */, 11 /* CMD/MOSI */);
+  // if (!SD.begin(10 /* CS */, SPI))
+  // pinMode(10 /* CS */, OUTPUT);
+  // digitalWrite(SD_CS, HIGH);
+  // SD_MMC.setPins(12 /* CLK */, 11 /* CMD/MOSI */, 13 /* D0/MISO */);
+  // if (!SD_MMC.begin("/root", true /* mode1bit */, false /* format_if_mount_failed */, SDMMC_FREQ_DEFAULT))
+  // SD_MMC.setPins(12 /* CLK */, 11 /* CMD/MOSI */, 13 /* D0/MISO */, 14 /* D1 */, 15 /* D2 */, 10 /* D3/CS */);
+  // if (!SD_MMC.begin("/root", false /* mode1bit */, false /* format_if_mount_failed */, SDMMC_FREQ_HIGHSPEED))
 #elif defined(ESP8266)
   if (!LittleFS.begin())
-  // if (!SD.begin())
+  // if (!SD.begin(SS))
 #else
   if (!SD.begin())
 #endif
@@ -135,9 +154,10 @@ void setup()
   {
     unsigned long start = millis();
 
+/* Wio Terminal */
 #if defined(ARDUINO_ARCH_SAMD) && defined(SEEED_GROVE_UI_WIRELESS)
     File bmpFile = SD.open(BMP_FILENAME, "r");
-#elif defined(ARDUINO_RASPBERRY_PI_PICO)
+#elif defined(TARGET_RP2040)
     File bmpFile = LittleFS.open(BMP_FILENAME, "r");
     // File bmpFile = SD.open(BMP_FILENAME, "r");
 #elif defined(ESP32)

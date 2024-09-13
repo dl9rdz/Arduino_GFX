@@ -32,22 +32,41 @@ uint8_t tsa, tsb, tsc, ds;
 void setup()
 {
   Serial.begin(115200);
-  // while (!Serial);
-  Serial.println("Arduino_GFX library Multiple Device Test!");
+  // Serial.setDebugOutput(true);
+  // while(!Serial);
+  Serial.println("Arduino_GFX Multiple Display example!");
 
-  gfx1->begin();
+#ifdef GFX_EXTRA_PRE_INIT
+  GFX_EXTRA_PRE_INIT();
+#endif
+
+  // Init all displays
+
+  if (!gfx1->begin())
+  {
+    Serial.println("gfx1->begin() failed!");
+  }
   gfx1->fillScreen(RED);
   delay(200);
 
-  gfx2->begin();
+  if (!gfx2->begin())
+  {
+    Serial.println("gfx2->begin() failed!");
+  }
   gfx2->fillScreen(YELLOW);
   delay(200);
 
-  gfx3->begin();
+  if (!gfx3->begin())
+  {
+    Serial.println("gfx3->begin() failed!");
+  }
   gfx3->fillScreen(GREEN);
   delay(200);
 
-  gfx4->begin();
+  if (!gfx4->begin())
+  {
+    Serial.println("gfx4->begin() failed!");
+  }
   gfx4->fillScreen(BLUE);
   delay(200);
 }
@@ -356,7 +375,7 @@ int32_t testText()
   gfx->println(F("Size 8"));
 
   gfx->setTextSize(9);
-  gfx->setTextColor(PINK);
+  gfx->setTextColor(PALERED);
   gfx->println(F("Size 9"));
 
   return micros() - start;
