@@ -2085,6 +2085,9 @@ void Arduino_GFX::drawChar(int16_t x, int16_t y, unsigned char c,
       {
         curH -= textsize_y;
       }
+      if (curY < 0) {
+        curY = 0;
+      }
       writeFillRectPreclipped(x, curY, curW, curH, bg);
     }
     if (textsize_x == 1 && textsize_y == 1)
