@@ -707,7 +707,8 @@ void Arduino_ESP32SPI::writeRepeat(uint16_t p, uint32_t len)
     {
       xferLen = (bufLen <= len) ? bufLen : len; // How many this pass?
 
-      if (_miso != GFX_NOT_DEFINED)
+      //if (_miso != GFX_NOT_DEFINED)
+      // lets do this always, to check if this solves my issue...
       {
         l = (xferLen + 1) >> 1;
         for (uint32_t i = 0; i < l; i++)
